@@ -1,0 +1,23 @@
+{
+  "name": "vcolesdev_clients_app",
+  "version": "1.0.0",
+  "description": "This is a simple CRUD application for handling freelance clients.",
+  "main": "index.js",
+  "scripts": {
+    "generate:certs": "/bin/bash ./ssl/scripts/generate-certs.sh",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "docker",
+    "mongodb",
+    "mongoose",
+    "express",
+    "react",
+    "typescript",
+    "nodejs",
+    "nginx",
+    "application"
+  ],
+  "author": "Vanessa Coles",
+  "license": "ISC"
+}

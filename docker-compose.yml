@@ -1,0 +1,121 @@
+# network configuration for docker services
+networks:
+  app-network:
+    driver: bridge
+# services begin in order of dependency
+services:
+  # openSSL service configuration
+  openssl:
+    build:
+      context: ./ssl
+    container_name: "${APP_PREFIX}-openssl"
+    networks:
+      - app-network
+    volumes:
+      - ssl-data:/var/ssl
+  # mongodb service configuration
+  mongo:
+    build:
+      context: ./db
+    container_name: "${APP_PREFIX}-mongo"
+    depends_on:
+      - openssl
+    healthcheck: # check the health of the container
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/test
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    expose:
+      - "27017"
+    networks:
+      - app-network
+    volumes:
+      - ./db/data:/data/db
+      - mongo-data:/data/db
+  # mongosh service configuration
+  mongosh:
+    command:
+      - "mongosh --host mongo --port 27017 --username root --password example"
+    depends_on:
+      - mongo
+    environment:
+      - CONN_STRING=mongodb://root:example@mongo:27017
+    image: mongodb/mongodb-community-server:7.0-ubi8
+    networks:
+      - app-network
+  # express node server service configuration
+  api:
+    build:
+      context: ./api
+    container_name: "${APP_PREFIX}-api"
+    depends_on:
+      mongo:
+        condition: service_started
+      openssl:
+        condition: service_started
+    expose:
+      - "8080"
+    networks:
+      - app-network
+    volumes:
+      - ./api:/usr/src/app
+      - /usr/src/app/node_modules
+  # node (react app) service configuration
+  app:
+    build:
+      context: ./app
+    container_name: "${APP_PREFIX}-app"
+    depends_on:
+      openssl:
+        condition: service_started
+      mongo:
+        condition: service_started
+    environment:
+      - NODE_ENV=development
+    expose:
+      - "5173"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+    networks:
+      - app-network
+    volumes:
+      - ./app:/usr/src/app
+      - /usr/src/app/node_modules
+  # nginx service configuration for use with reverse proxy
+  server:
+    build:
+      context: ./server
+    container_name: "${APP_PREFIX}-server"
+    depends_on:
+      mongo:
+        condition: service_started
+      openssl:
+        condition: service_started
+      app:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+    networks:
+      - app-network
+    ports:
+      - "5173:5173"
+      - "8080:8080"
+      - "80:80"
+      - "443:443"
+    volumes:
+      # mount the nginx configuration
+      - ./server/conf.d:/etc/nginx/conf.d
+      # nginx ssl configuration
+      - ./server/ssl:/etc/nginx/ssl
+      # get the nginx logs
+      - ./server/log:/var/log/nginx
+      # mount the application directory to the nginx server
+      - ./app:/var/www/html
+# docker-compose version
+version: "3.9"
+# persistent data volumes
+volumes:
+  mongo-data:
+  ssl-data:
+
+
